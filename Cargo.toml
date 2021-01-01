@@ -1,5 +1,5 @@
 [package]
-name = "video-gen"
+name = "video_gen"
 version = "0.1.0"
 authors = ["Isaac Park <isaac@academia.edu>"]
 edition = "2018"
