@@ -1,5 +1,6 @@
 extern crate ffmpeg_next as ffmpeg;
 
+use std::ops::Drop;
 use ffmpeg_next::Rational;
 use ffmpeg::Packet;
 use ffmpeg::format::{output, Pixel};
@@ -17,6 +18,8 @@ pub struct VideoGenerator {
   pixel_format: Pixel,
   frame_num: i64,
   encoder: ffmpeg::encoder::Video,
+
+  finalized: bool,
 }
 impl VideoGenerator {
   pub fn new<P: AsRef<Path>, R: Into<Rational>>(
@@ -57,6 +60,7 @@ impl VideoGenerator {
         pixel_format,
         frame_num: 0,
         encoder,
+        finalized: false,
       }
     )
   }
@@ -75,11 +79,20 @@ impl VideoGenerator {
   }
 
   pub fn finalize(&mut self) -> Result<(), Error> {
+    if self.finalized {
+      return Ok(());
+    }
+    self.finalized = true;
+
     self.encoder.send_eof()?;
     self.drain_encoder()?;
     self.output.write_trailer()?;
-
     Ok(())
+  }
+
+  pub fn un_finalize(&mut self) {
+    self.finalized = false;
+
   }
 
   pub fn drain_encoder(&mut self) -> Result<(), Error> {
@@ -114,6 +127,12 @@ impl VideoGenerator {
     Ok(ffmpeg::init()?)
   }
 
+}
+
+impl Drop for VideoGenerator {
+  fn drop(&mut self) {
+    self.finalize().unwrap()
+  }
 }
 
 
