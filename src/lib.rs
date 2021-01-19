@@ -1,15 +1,15 @@
 extern crate ffmpeg_next as ffmpeg;
 
+use ffmpeg_next::codec::video::FormatIter;
 use std::ops::Drop;
 use ffmpeg_next::Rational;
 use ffmpeg::Packet;
 use ffmpeg::format::{output, Pixel};
 use ffmpeg::util::frame::video::Video as FfmpegFrame;
-use ffmpeg::{encoder, codec};
 use ffmpeg::format::context::output::Output;
+
 use std::path::Path;
 use std::fmt;
-
 
 pub struct VideoGenerator {
   output: Output,
@@ -25,12 +25,11 @@ impl VideoGenerator {
   pub fn new<P: AsRef<Path>, R: Into<Rational>>(
     path: P,
     time_base: R,
-    codec_id: codec::Id,
+    codec: ffmpeg::Codec,
     width: u32,
     height: u32,
   ) -> Result<VideoGenerator, Error> {
     let time_base: Rational = time_base.into();
-    let codec = encoder::find(codec_id).ok_or(Error::InvalidCodec)?;
 
     let mut output = output(&path)?;
     let mut stream = output.add_stream(codec)?;
@@ -39,10 +38,9 @@ impl VideoGenerator {
 
     let mut encoder = stream.codec().encoder().video()?;
     encoder.set_time_base(time_base);
-    let pixel_format = codec.video()?.
+    let pixel_format = valid_format(codec.video()?.
       formats().
-      ok_or(Error::MissingFormat)?.
-      next().
+      ok_or(Error::MissingFormat)?).
       ok_or(Error::MissingFormat)?;
     encoder.set_format(pixel_format);
     encoder.set_width(width);
@@ -135,6 +133,10 @@ impl Drop for VideoGenerator {
   }
 }
 
+fn valid_format(mut formats: FormatIter) -> Option<Pixel> {
+  formats.find(|&format| format != Pixel::VIDEOTOOLBOX)
+}
+
 
 #[derive(Debug)]
 pub enum Error {
@@ -176,6 +178,18 @@ impl RgbFrame {
     Ok(output)
   }
 
+  pub unsafe fn from_ptr(buffer: *const u8, width: u32, height: u32) -> RgbFrame {
+    let mut frame = FfmpegFrame::empty();
+    frame.set_format(Pixel::RGB32);
+    frame.set_width(width);
+    frame.set_height(height);
+    (*frame.as_mut_ptr()).data[0] = buffer as *mut u8;
+
+    RgbFrame {
+      frame,
+    }
+  }
+
   pub fn width(&self) -> u32 {
     self.frame.width()
   }
@@ -196,16 +210,5 @@ impl std::convert::From<FfmpegFrame> for RgbFrame {
 impl std::convert::From<RgbFrame> for FfmpegFrame {
   fn from(rgb_frame: RgbFrame) -> Self {
     rgb_frame.frame
-  }
-}
-
-
-
-#[cfg(test)]
-mod tests {
-  #[test]
-  fn it_works() {
-    use super::VideoGenerator;
-
   }
 }
