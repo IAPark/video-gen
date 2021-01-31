@@ -1,5 +1,6 @@
 # video-gen
-A simple crate to generate a video from raw frame buffers in rust
+A simple crate to generate a video from raw frame buffers in rust This is a fairly thin wrapper around ffmpeg_next but hopefully makes it easier to 
+generate video from rust. 
 
 # Example
 
